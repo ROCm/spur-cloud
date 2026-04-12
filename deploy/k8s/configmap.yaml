@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spur-cloud-config
+  namespace: spur-cloud
+data:
+  spur-cloud.toml: |
+    public_url = "https://gpu.example.com"
+
+    [server]
+    listen_addr = "0.0.0.0:8080"
+    session_namespace = "spur-sessions"
+
+    [database]
+    url = "postgresql://spur_cloud:CHANGEME@postgres:5432/spur_cloud"
+
+    [spur]
+    controller_addr = "http://spurctld.spur:6817"
+
+    [auth]
+    jwt_secret = "CHANGEME-generate-a-random-secret"
+    jwt_expiry_hours = 24
+
+    # Uncomment and configure for GitHub OAuth:
+    # [auth.github]
+    # enabled = true
+    # client_id = "Iv1.your_client_id"
+    # client_secret = "your_client_secret"
+
+    # Uncomment and configure for Okta OIDC:
+    # [auth.okta]
+    # enabled = true
+    # issuer = "https://your-company.okta.com/oauth2/default"
+    # client_id = "0oa_your_client_id"
+    # client_secret = "your_client_secret"
+    # admin_groups = ["gpu-admins"]

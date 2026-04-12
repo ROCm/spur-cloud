@@ -1,0 +1,71 @@
+pub mod auth;
+pub mod sessions;
+pub mod gpus;
+pub mod users;
+pub mod ws;
+pub mod health;
+pub mod billing;
+
+use axum::{
+    middleware,
+    routing::{delete, get, post},
+    Router,
+};
+
+use crate::auth::middleware::auth_middleware;
+use crate::state::AppState;
+
+pub fn build_router(state: AppState) -> Router {
+    let public_routes = Router::new()
+        // Health
+        .route("/healthz", get(health::healthz))
+        .route("/readyz", get(health::readyz))
+        // Auth (public)
+        .route("/api/auth/register", post(auth::register))
+        .route("/api/auth/login", post(auth::login))
+        .route("/api/auth/refresh", post(auth::refresh))
+        .route("/api/auth/providers", get(auth::providers))
+        // OAuth (public redirects)
+        .route("/api/auth/github", get(crate::auth::github::github_authorize))
+        .route(
+            "/api/auth/github/callback",
+            get(crate::auth::github::github_callback),
+        )
+        .route("/api/auth/okta", get(crate::auth::okta::okta_authorize))
+        .route(
+            "/api/auth/okta/callback",
+            get(crate::auth::okta::okta_callback),
+        );
+
+    let protected_routes = Router::new()
+        // Sessions
+        .route("/api/sessions", post(sessions::create_session))
+        .route("/api/sessions", get(sessions::list_sessions))
+        .route("/api/sessions/{id}", get(sessions::get_session))
+        .route("/api/sessions/{id}", delete(sessions::delete_session))
+        // Terminal WebSocket
+        .route("/api/sessions/{id}/terminal", get(ws::terminal_upgrade))
+        // GPUs
+        .route("/api/gpus", get(gpus::get_capacity))
+        // User profile
+        .route("/api/users/me", get(users::get_profile))
+        // SSH keys
+        .route("/api/users/me/ssh-keys", get(users::list_ssh_keys))
+        .route("/api/users/me/ssh-keys", post(users::add_ssh_key))
+        .route(
+            "/api/users/me/ssh-keys/{id}",
+            delete(users::delete_ssh_key),
+        )
+        // Billing
+        .route("/api/billing/usage", get(billing::get_usage))
+        .route("/api/billing/summary", get(billing::get_summary))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
+        .with_state(state)
+}

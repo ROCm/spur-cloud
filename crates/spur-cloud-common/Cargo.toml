@@ -1,0 +1,9 @@
+[package]
+name = "spur-cloud-common"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+chrono.workspace = true
+uuid.workspace = true

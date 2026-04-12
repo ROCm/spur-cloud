@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spur-cloud
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spur-sessions

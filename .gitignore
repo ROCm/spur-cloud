@@ -1,0 +1,7 @@
+/target
+/frontend/node_modules
+/frontend/dist
+spur-cloud.toml
+*.swp
+*.swo
+.env

@@ -1,0 +1,36 @@
+# Spur Cloud - GPUaaS Platform Configuration
+# Copy to spur-cloud.toml and update values.
+
+# Public URL of the platform (used for OAuth callbacks)
+public_url = "http://localhost:8080"
+
+[server]
+listen_addr = "0.0.0.0:8080"
+session_namespace = "spur-sessions"
+
+[database]
+url = "postgresql://spur_cloud:password@localhost:5432/spur_cloud"
+
+[spur]
+# gRPC address of the Spur controller (spurctld)
+controller_addr = "http://localhost:6817"
+
+[auth]
+# Secret key for JWT signing (generate with: openssl rand -hex 32)
+jwt_secret = "change-me-to-a-random-secret"
+jwt_expiry_hours = 24
+
+# GitHub OAuth2 (optional)
+# Create an OAuth app at: https://github.com/settings/developers
+# [auth.github]
+# enabled = true
+# client_id = "Iv1.abc123"
+# client_secret = "your-github-client-secret"
+
+# Okta OIDC (optional)
+# [auth.okta]
+# enabled = true
+# issuer = "https://your-company.okta.com/oauth2/default"
+# client_id = "0oa123"
+# client_secret = "your-okta-client-secret"
+# admin_groups = ["gpu-admins"]

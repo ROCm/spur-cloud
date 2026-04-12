@@ -1,0 +1,23 @@
+# Base GPU session image with sshd
+# Build for AMD ROCm GPUs
+FROM rocm/pytorch:latest
+
+# Install sshd
+RUN apt-get update && \
+    apt-get install -y openssh-server && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /run/sshd /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    # Allow root login via SSH key only
+    sed -i 's/#PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && \
+    # Generate host keys
+    ssh-keygen -A
+
+# GPUaaS entrypoint: injects SSH keys and starts sshd
+COPY deploy/docker/gpuaas-entrypoint.sh /usr/local/bin/gpuaas-entrypoint.sh
+RUN chmod +x /usr/local/bin/gpuaas-entrypoint.sh
+
+EXPOSE 22
+
+CMD ["sleep", "infinity"]
