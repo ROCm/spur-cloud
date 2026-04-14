@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::jwt;
@@ -59,13 +54,19 @@ pub async fn register(
     Json(req): Json<RegisterRequest>,
 ) -> impl IntoResponse {
     if req.password.len() < 8 {
-        return (StatusCode::BAD_REQUEST, "password must be at least 8 characters").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "password must be at least 8 characters",
+        )
+            .into_response();
     }
 
     // Hash password
     use argon2::PasswordHasher;
-    let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
-    let hash: String = match argon2::Argon2::default().hash_password(req.password.as_bytes(), &salt) {
+    let salt =
+        argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    let hash: String = match argon2::Argon2::default().hash_password(req.password.as_bytes(), &salt)
+    {
         Ok(h) => h.to_string(),
         Err(_) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, "password hashing failed").into_response();
@@ -119,7 +120,9 @@ pub async fn login(
 
     let password_hash = match &user.password_hash {
         Some(h) => h,
-        None => return (StatusCode::UNAUTHORIZED, "use OAuth login for this account").into_response(),
+        None => {
+            return (StatusCode::UNAUTHORIZED, "use OAuth login for this account").into_response()
+        }
     };
 
     let parsed_hash = match argon2::PasswordHash::new(password_hash) {

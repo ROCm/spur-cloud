@@ -5,12 +5,12 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,        // user ID
+    pub sub: String, // user ID
     pub email: String,
     pub username: String,
     pub admin: bool,
-    pub exp: i64,           // expiry (unix timestamp)
-    pub iat: i64,           // issued at
+    pub exp: i64, // expiry (unix timestamp)
+    pub iat: i64, // issued at
 }
 
 /// Identity extracted from a verified JWT. Available in route handlers.

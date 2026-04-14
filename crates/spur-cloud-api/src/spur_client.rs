@@ -138,9 +138,7 @@ pub async fn get_gpu_capacity(
     client: &mut SlurmControllerClient<Channel>,
 ) -> anyhow::Result<Vec<spur_cloud_common::gpu_types::GpuPool>> {
     use spur_cloud_common::gpu_types::{GpuNodeInfo, GpuPool};
-    let resp = client
-        .get_nodes(GetNodesRequest::default())
-        .await?;
+    let resp = client.get_nodes(GetNodesRequest::default()).await?;
 
     let nodes = resp.into_inner().nodes;
     let mut pools: HashMap<String, GpuPool> = HashMap::new();
@@ -151,14 +149,16 @@ pub async fn get_gpu_capacity(
 
         if let Some(total) = total_res {
             for gpu in &total.gpus {
-                let pool = pools.entry(gpu.gpu_type.clone()).or_insert_with(|| GpuPool {
-                    gpu_type: gpu.gpu_type.clone(),
-                    total: 0,
-                    available: 0,
-                    allocated: 0,
-                    memory_mb: gpu.memory_mb,
-                    nodes: Vec::new(),
-                });
+                let pool = pools
+                    .entry(gpu.gpu_type.clone())
+                    .or_insert_with(|| GpuPool {
+                        gpu_type: gpu.gpu_type.clone(),
+                        total: 0,
+                        available: 0,
+                        allocated: 0,
+                        memory_mb: gpu.memory_mb,
+                        nodes: Vec::new(),
+                    });
                 pool.total += 1;
             }
         }

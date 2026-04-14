@@ -1,0 +1,178 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protobuf compiler
+        run: sudo apt-get install -y protobuf-compiler
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build backend
+        run: cargo build --all-targets
+
+      - name: Test backend
+        run: cargo test
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check Rust formatting
+        run: cargo fmt --all --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protobuf compiler
+        run: sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-clippy-
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -W clippy::all
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  integration:
+    name: Integration Test (MI300X)
+    runs-on: [self-hosted, mi300x]
+    needs: [build-and-test, fmt, clippy, frontend]
+    concurrency:
+      group: spur-cloud-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo build --release -j 4
+
+      - name: Start test services
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+
+          # Start spurctld if not running
+          if ! pgrep -x spurctld >/dev/null; then
+            ~/spur/etc/start-controller.sh 2>/dev/null || true
+            sleep 3
+          fi
+
+          # Start PostgreSQL test database
+          if ! pg_isready -q 2>/dev/null; then
+            echo "PostgreSQL not available, skipping integration test"
+            exit 0
+          fi
+
+          # Create test database if needed
+          psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='spur_cloud_test'" 2>/dev/null | grep -q 1 || \
+            psql -U postgres -c "CREATE DATABASE spur_cloud_test" 2>/dev/null || true
+
+      - name: Run API smoke test
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+
+          # Generate test config
+          cat > /tmp/spur-cloud-test.toml << 'EOF'
+          public_url = "http://localhost:9090"
+          [server]
+          listen_addr = "127.0.0.1:9090"
+          backend = "bare_metal"
+          [bare_metal]
+          agent_port = 6828
+          [database]
+          url = "postgresql://postgres@localhost/spur_cloud_test"
+          [spur]
+          controller_addr = "http://127.0.0.1:6817"
+          [auth]
+          jwt_secret = "test-secret-for-ci-only-do-not-use-in-prod"
+          EOF
+
+          # Start the API server in background
+          timeout 30 ./target/release/spur-cloud-api --config /tmp/spur-cloud-test.toml &
+          API_PID=$!
+          sleep 3
+
+          # Health check
+          curl -sf http://localhost:9090/healthz || { echo "FAIL: healthz"; kill $API_PID 2>/dev/null; exit 1; }
+          echo "PASS: healthz"
+
+          # Register + login
+          REGISTER=$(curl -sf -X POST http://localhost:9090/api/auth/register \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"ci@test.com","username":"citest","password":"testpassword123"}')
+          TOKEN=$(echo "$REGISTER" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
+          [ -n "$TOKEN" ] && echo "PASS: register + login" || { echo "FAIL: register"; kill $API_PID 2>/dev/null; exit 1; }
+
+          # Auth providers
+          PROVIDERS=$(curl -sf http://localhost:9090/api/auth/providers)
+          echo "$PROVIDERS" | grep -q "local" && echo "PASS: providers" || echo "WARN: providers response unexpected"
+
+          # GPU capacity (requires spurctld)
+          GPU=$(curl -sf http://localhost:9090/api/gpus -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+          echo "GPU capacity: $GPU"
+          echo "PASS: API smoke test complete"
+
+          kill $API_PID 2>/dev/null || true

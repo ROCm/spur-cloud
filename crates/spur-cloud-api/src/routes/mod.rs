@@ -1,10 +1,10 @@
 pub mod auth;
-pub mod sessions;
+pub mod billing;
 pub mod gpus;
+pub mod health;
+pub mod sessions;
 pub mod users;
 pub mod ws;
-pub mod health;
-pub mod billing;
 
 use axum::{
     middleware,
@@ -26,7 +26,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/refresh", post(auth::refresh))
         .route("/api/auth/providers", get(auth::providers))
         // OAuth (public redirects)
-        .route("/api/auth/github", get(crate::auth::github::github_authorize))
+        .route(
+            "/api/auth/github",
+            get(crate::auth::github::github_authorize),
+        )
         .route(
             "/api/auth/github/callback",
             get(crate::auth::github::github_callback),
@@ -39,8 +42,14 @@ pub fn build_router(state: AppState) -> Router {
 
     let protected_routes = Router::new()
         // Sessions
-        .route("/api/sessions", get(sessions::list_sessions).post(sessions::create_session))
-        .route("/api/sessions/:id", get(sessions::get_session).delete(sessions::delete_session))
+        .route(
+            "/api/sessions",
+            get(sessions::list_sessions).post(sessions::create_session),
+        )
+        .route(
+            "/api/sessions/:id",
+            get(sessions::get_session).delete(sessions::delete_session),
+        )
         // Terminal WebSocket
         .route("/api/sessions/:id/terminal", get(ws::terminal_upgrade))
         // GPUs
@@ -48,11 +57,11 @@ pub fn build_router(state: AppState) -> Router {
         // User profile
         .route("/api/users/me", get(users::get_profile))
         // SSH keys
-        .route("/api/users/me/ssh-keys", get(users::list_ssh_keys).post(users::add_ssh_key))
         .route(
-            "/api/users/me/ssh-keys/:id",
-            delete(users::delete_ssh_key),
+            "/api/users/me/ssh-keys",
+            get(users::list_ssh_keys).post(users::add_ssh_key),
         )
+        .route("/api/users/me/ssh-keys/:id", delete(users::delete_ssh_key))
         // Billing
         .route("/api/billing/usage", get(billing::get_usage))
         .route("/api/billing/summary", get(billing::get_summary))

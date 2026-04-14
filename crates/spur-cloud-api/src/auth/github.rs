@@ -54,12 +54,13 @@ pub async fn github_authorize(State(state): State<AppState>) -> Response {
     );
 
     // Set state in cookie for validation on callback
-    let cookie = format!("oauth_state={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600", csrf_state);
-    let mut resp = Redirect::temporary(&url).into_response();
-    resp.headers_mut().insert(
-        axum::http::header::SET_COOKIE,
-        cookie.parse().unwrap(),
+    let cookie = format!(
+        "oauth_state={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600",
+        csrf_state
     );
+    let mut resp = Redirect::temporary(&url).into_response();
+    resp.headers_mut()
+        .insert(axum::http::header::SET_COOKIE, cookie.parse().unwrap());
     resp
 }
 
@@ -111,7 +112,10 @@ pub async fn github_callback(
     // Fetch user profile
     let user_resp = client
         .get("https://api.github.com/user")
-        .header("authorization", format!("Bearer {}", token_data.access_token))
+        .header(
+            "authorization",
+            format!("Bearer {}", token_data.access_token),
+        )
         .header("user-agent", "spur-cloud")
         .send()
         .await;
@@ -133,7 +137,10 @@ pub async fn github_callback(
     // Fetch primary email
     let emails_resp = client
         .get("https://api.github.com/user/emails")
-        .header("authorization", format!("Bearer {}", token_data.access_token))
+        .header(
+            "authorization",
+            format!("Bearer {}", token_data.access_token),
+        )
         .header("user-agent", "spur-cloud")
         .send()
         .await;
@@ -187,7 +194,10 @@ pub async fn github_callback(
     };
 
     // Redirect to frontend with token in fragment
-    let redirect_url = format!("{}/#/auth/callback?token={}", state.config.public_url, token);
+    let redirect_url = format!(
+        "{}/#/auth/callback?token={}",
+        state.config.public_url, token
+    );
     Redirect::temporary(&redirect_url).into_response()
 }
 

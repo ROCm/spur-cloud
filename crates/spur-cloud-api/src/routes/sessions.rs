@@ -12,8 +12,8 @@ use crate::auth::jwt::Identity;
 use crate::config::Backend;
 use crate::db::{session_repo, ssh_key_repo};
 use crate::models::session::SessionDetail;
-use crate::ssh;
 use crate::spur_client;
+use crate::ssh;
 use crate::state::AppState;
 use spur_cloud_common::session_types::CreateSessionRequest;
 
@@ -106,7 +106,8 @@ pub async fn create_session(
     .await
     {
         Ok(job_id) => {
-            let _ = session_repo::update_session_spur_job(&state.db, session.id, job_id as i32).await;
+            let _ =
+                session_repo::update_session_spur_job(&state.db, session.id, job_id as i32).await;
             info!(session_id = %session.id, job_id, "session submitted");
             let detail: SessionDetail = session.into();
             (StatusCode::CREATED, Json(detail)).into_response()

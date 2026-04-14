@@ -21,21 +21,21 @@ pub async fn auth_middleware(
         .get("authorization")
         .and_then(|v| v.to_str().ok());
 
-    let query_token = request
-        .uri()
-        .query()
-        .and_then(|q| {
-            q.split('&')
-                .find(|p| p.starts_with("token="))
-                .map(|p| p[6..].to_string())
-        });
+    let query_token = request.uri().query().and_then(|q| {
+        q.split('&')
+            .find(|p| p.starts_with("token="))
+            .map(|p| p[6..].to_string())
+    });
 
     let token = match auth_header {
         Some(h) if h.starts_with("Bearer ") => h[7..].to_string(),
         _ => match query_token {
             Some(t) => t,
             None => {
-                return (StatusCode::UNAUTHORIZED, "missing or invalid authorization header")
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    "missing or invalid authorization header",
+                )
                     .into_response();
             }
         },

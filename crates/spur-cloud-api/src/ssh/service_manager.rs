@@ -82,7 +82,10 @@ pub async fn delete_ssh_service(
     let services: Api<Service> = Api::namespaced(client.clone(), namespace);
     let service_name = format!("ssh-{}", &session_id[..8]);
 
-    match services.delete(&service_name, &DeleteParams::default()).await {
+    match services
+        .delete(&service_name, &DeleteParams::default())
+        .await
+    {
         Ok(_) => {
             debug!(service = %service_name, "SSH service deleted");
             Ok(())

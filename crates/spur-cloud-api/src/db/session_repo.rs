@@ -87,11 +87,7 @@ pub async fn list_active_sessions(pool: &PgPool) -> sqlx::Result<Vec<Session>> {
     .await
 }
 
-pub async fn update_session_state(
-    pool: &PgPool,
-    id: Uuid,
-    state: &str,
-) -> sqlx::Result<()> {
+pub async fn update_session_state(pool: &PgPool, id: Uuid, state: &str) -> sqlx::Result<()> {
     sqlx::query("UPDATE sessions SET state = $2 WHERE id = $1")
         .bind(id)
         .bind(state)
@@ -146,11 +142,7 @@ pub async fn update_session_ssh(
     Ok(())
 }
 
-pub async fn update_session_ended(
-    pool: &PgPool,
-    id: Uuid,
-    final_state: &str,
-) -> sqlx::Result<()> {
+pub async fn update_session_ended(pool: &PgPool, id: Uuid, final_state: &str) -> sqlx::Result<()> {
     sqlx::query("UPDATE sessions SET state = $2, ended_at = $3 WHERE id = $1")
         .bind(id)
         .bind(final_state)

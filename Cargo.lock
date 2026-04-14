@@ -2834,6 +2834,7 @@ dependencies = [
 [[package]]
 name = "spur-proto"
 version = "0.1.0"
+source = "git+https://github.com/ROCm/spur.git?branch=main#123a5ab9df749f50dfec8a2b3c50bd8beb42a6c3"
 dependencies = [
  "prost",
  "prost-types",

@@ -42,12 +42,13 @@ pub async fn okta_authorize(State(state): State<AppState>) -> Response {
         csrf_state,
     );
 
-    let cookie = format!("oauth_state={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600", csrf_state);
-    let mut resp = Redirect::temporary(&url).into_response();
-    resp.headers_mut().insert(
-        axum::http::header::SET_COOKIE,
-        cookie.parse().unwrap(),
+    let cookie = format!(
+        "oauth_state={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600",
+        csrf_state
     );
+    let mut resp = Redirect::temporary(&url).into_response();
+    resp.headers_mut()
+        .insert(axum::http::header::SET_COOKIE, cookie.parse().unwrap());
     resp
 }
 
@@ -122,11 +123,7 @@ pub async fn okta_callback(
     let is_admin = claims
         .groups
         .as_ref()
-        .map(|groups| {
-            groups
-                .iter()
-                .any(|g| okta.admin_groups.contains(g))
-        })
+        .map(|groups| groups.iter().any(|g| okta.admin_groups.contains(g)))
         .unwrap_or(false);
 
     // Upsert user
@@ -165,6 +162,9 @@ pub async fn okta_callback(
         }
     };
 
-    let redirect_url = format!("{}/#/auth/callback?token={}", state.config.public_url, token);
+    let redirect_url = format!(
+        "{}/#/auth/callback?token={}",
+        state.config.public_url, token
+    );
     Redirect::temporary(&redirect_url).into_response()
 }

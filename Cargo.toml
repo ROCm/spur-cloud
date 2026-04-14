@@ -67,8 +67,8 @@ base64 = "0.22"
 rand = "0.8"
 sha2 = "0.10"
 
-# Spur proto (path dependency)
-spur-proto = { path = "../spur/crates/spur-proto" }
+# Spur proto (git dependency from ROCm/spur main branch)
+spur-proto = { git = "https://github.com/ROCm/spur.git", branch = "main" }
 
 # Internal
 spur-cloud-common = { path = "crates/spur-cloud-common" }

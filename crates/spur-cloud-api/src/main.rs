@@ -47,7 +47,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    info!(version = env!("CARGO_PKG_VERSION"), "spur-cloud-api starting");
+    info!(
+        version = env!("CARGO_PKG_VERSION"),
+        "spur-cloud-api starting"
+    );
 
     // Load config
     let config = Config::load(&args.config)?;
@@ -143,12 +146,8 @@ async fn session_sync_loop(state: AppState) {
                 Ok(Some(j)) => j,
                 Ok(None) => {
                     // Job gone from spur — mark failed
-                    let _ = db::session_repo::update_session_ended(
-                        &state.db,
-                        session.id,
-                        "failed",
-                    )
-                    .await;
+                    let _ = db::session_repo::update_session_ended(&state.db, session.id, "failed")
+                        .await;
                     continue;
                 }
                 Err(_) => continue,
@@ -177,10 +176,7 @@ async fn session_sync_loop(state: AppState) {
                 let node_name = job.nodelist.clone();
                 let pod_name = format!("spur-job-{}", job_id);
                 let _ = db::session_repo::update_session_running(
-                    &state.db,
-                    session.id,
-                    &node_name,
-                    &pod_name,
+                    &state.db, session.id, &node_name, &pod_name,
                 )
                 .await;
 
@@ -190,7 +186,10 @@ async fn session_sync_loop(state: AppState) {
                         config::Backend::K8s => {
                             let ns = &state.config.server.session_namespace;
                             match ssh::service_manager::create_ssh_service(
-                                state.kube.as_ref().expect("k8s backend requires kube client"),
+                                state
+                                    .kube
+                                    .as_ref()
+                                    .expect("k8s backend requires kube client"),
                                 ns,
                                 &session.id.to_string(),
                                 &pod_name,
@@ -204,10 +203,7 @@ async fn session_sync_loop(state: AppState) {
                                         host
                                     };
                                     let _ = db::session_repo::update_session_ssh(
-                                        &state.db,
-                                        session.id,
-                                        &ssh_host,
-                                        port,
+                                        &state.db, session.id, &ssh_host, port,
                                     )
                                     .await;
                                 }
@@ -247,27 +243,23 @@ async fn session_sync_loop(state: AppState) {
 
                 info!(session = %session.id, job_id, node = %node_name, "session running");
             } else if matches!(new_state, "completed" | "failed" | "cancelled") {
-                let _ = db::session_repo::update_session_ended(
-                    &state.db,
-                    session.id,
-                    new_state,
-                )
-                .await;
+                let _ =
+                    db::session_repo::update_session_ended(&state.db, session.id, new_state).await;
 
                 // Finalize usage record
-                let _ = db::billing_repo::record_usage_end(
-                    &state.db,
-                    session.id,
-                    chrono::Utc::now(),
-                )
-                .await;
+                let _ =
+                    db::billing_repo::record_usage_end(&state.db, session.id, chrono::Utc::now())
+                        .await;
 
                 // Clean up SSH service (only needed for K8s backend)
                 if session.ssh_enabled {
                     if let config::Backend::K8s = state.config.server.backend {
                         let ns = &state.config.server.session_namespace;
                         let _ = ssh::service_manager::delete_ssh_service(
-                            state.kube.as_ref().expect("k8s backend requires kube client"),
+                            state
+                                .kube
+                                .as_ref()
+                                .expect("k8s backend requires kube client"),
                             ns,
                             &session.id.to_string(),
                         )
@@ -278,12 +270,8 @@ async fn session_sync_loop(state: AppState) {
 
                 info!(session = %session.id, new_state, "session ended");
             } else {
-                let _ = db::session_repo::update_session_state(
-                    &state.db,
-                    session.id,
-                    new_state,
-                )
-                .await;
+                let _ =
+                    db::session_repo::update_session_state(&state.db, session.id, new_state).await;
             }
         }
     }

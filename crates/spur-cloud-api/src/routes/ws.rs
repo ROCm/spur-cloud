@@ -34,9 +34,7 @@ pub async fn terminal_upgrade(
         Backend::K8s => {
             let pod_name = match &session.pod_name {
                 Some(p) => p.clone(),
-                None => {
-                    return (StatusCode::BAD_REQUEST, "session pod not ready").into_response()
-                }
+                None => return (StatusCode::BAD_REQUEST, "session pod not ready").into_response(),
             };
             let namespace = state.config.server.session_namespace.clone();
             let kube_client = state

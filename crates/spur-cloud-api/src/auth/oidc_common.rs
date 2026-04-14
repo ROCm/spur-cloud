@@ -13,7 +13,10 @@ pub struct OidcDiscovery {
 
 /// Fetch OIDC discovery document from well-known endpoint.
 pub async fn fetch_discovery(issuer: &str) -> anyhow::Result<OidcDiscovery> {
-    let url = format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/'));
+    let url = format!(
+        "{}/.well-known/openid-configuration",
+        issuer.trim_end_matches('/')
+    );
     debug!(url = %url, "fetching OIDC discovery");
     let resp = reqwest::get(&url).await?;
     let discovery: OidcDiscovery = resp.json().await?;

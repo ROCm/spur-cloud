@@ -10,11 +10,7 @@ pub async fn healthz() -> impl IntoResponse {
 /// GET /readyz — readiness probe (checks DB and Spur connectivity)
 pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
     // Check DB
-    if sqlx::query("SELECT 1")
-        .execute(&state.db)
-        .await
-        .is_err()
-    {
+    if sqlx::query("SELECT 1").execute(&state.db).await.is_err() {
         return (StatusCode::SERVICE_UNAVAILABLE, "database unreachable");
     }
 
@@ -27,7 +23,10 @@ pub async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
     .await
     .is_err()
     {
-        return (StatusCode::SERVICE_UNAVAILABLE, "spur controller unreachable");
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "spur controller unreachable",
+        );
     }
 
     (StatusCode::OK, "ready")

@@ -35,12 +35,11 @@ pub async fn add_key(
 }
 
 pub async fn delete_key(pool: &PgPool, id: Uuid, user_id: Uuid) -> sqlx::Result<bool> {
-    let result =
-        sqlx::query("DELETE FROM ssh_keys WHERE id = $1 AND user_id = $2")
-            .bind(id)
-            .bind(user_id)
-            .execute(pool)
-            .await?;
+    let result = sqlx::query("DELETE FROM ssh_keys WHERE id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     Ok(result.rows_affected() > 0)
 }
 
