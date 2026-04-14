@@ -107,12 +107,12 @@ jobs:
 
       - name: Build release binary
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
+          export PATH="$HOME/bin:$HOME/.cargo/bin:$PATH"
           cargo build --release -j 4
 
       - name: Start test services
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
+          export PATH="$HOME/bin:$HOME/.cargo/bin:$PATH"
 
           # Start spurctld if not running
           if ! pgrep -x spurctld >/dev/null; then
@@ -132,7 +132,7 @@ jobs:
 
       - name: Run API smoke test
         run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
+          export PATH="$HOME/bin:$HOME/.cargo/bin:$PATH"
 
           # Generate test config
           cat > /tmp/spur-cloud-test.toml << 'EOF'
