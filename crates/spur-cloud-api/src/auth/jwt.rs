@@ -66,15 +66,8 @@ mod tests {
     #[test]
     fn verify_token_returns_principal_with_expected_claims() {
         let user_id = Uuid::new_v4();
-        let token = generate_token(
-            "test-secret",
-            user_id,
-            "user@example.com",
-            "alice",
-            true,
-            1,
-        )
-        .unwrap();
+        let token =
+            generate_token("test-secret", user_id, "user@example.com", "alice", true, 1).unwrap();
 
         let principal = verify_token("test-secret", &token).unwrap();
 

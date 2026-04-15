@@ -83,7 +83,8 @@ mod tests {
         let db = PgPoolOptions::new()
             .connect_lazy("postgresql://postgres:postgres@localhost/test")
             .unwrap();
-        let spur = SlurmControllerClient::new(Channel::from_static("http://localhost").connect_lazy());
+        let spur =
+            SlurmControllerClient::new(Channel::from_static("http://localhost").connect_lazy());
         let kube = kube::Client::new(
             service_fn(|_request| async {
                 Ok::<_, Infallible>(
@@ -150,15 +151,8 @@ mod tests {
     #[tokio::test]
     async fn middleware_inserts_principal_for_valid_token() {
         let user_id = Uuid::new_v4();
-        let token = generate_token(
-            "test-secret",
-            user_id,
-            "user@example.com",
-            "alice",
-            true,
-            1,
-        )
-        .unwrap();
+        let token =
+            generate_token("test-secret", user_id, "user@example.com", "alice", true, 1).unwrap();
 
         let response = protected_router("test-secret")
             .oneshot(
