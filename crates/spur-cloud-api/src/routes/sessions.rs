@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::auth::jwt::Identity;
+use crate::auth::principal::Principal;
 use crate::config::Backend;
 use crate::db::{session_repo, ssh_key_repo};
 use crate::models::session::SessionDetail;
@@ -31,7 +31,7 @@ fn default_limit() -> i64 {
 /// POST /api/sessions — launch a new GPU session
 pub async fn create_session(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Json(req): Json<CreateSessionRequest>,
 ) -> impl IntoResponse {
     // Validate
@@ -42,7 +42,7 @@ pub async fn create_session(
     // Create session in DB
     let session = match session_repo::create_session(
         &state.db,
-        identity.user_id,
+        principal.user_id,
         &req.name,
         &req.gpu_type,
         req.gpu_count,
@@ -62,7 +62,7 @@ pub async fn create_session(
 
     // Get SSH keys if SSH enabled
     let ssh_keys_str = if req.ssh_enabled {
-        match ssh_key_repo::get_keys_for_user(&state.db, identity.user_id).await {
+        match ssh_key_repo::get_keys_for_user(&state.db, principal.user_id).await {
             Ok(keys) => keys
                 .iter()
                 .map(|k| k.public_key.as_str())
@@ -123,12 +123,12 @@ pub async fn create_session(
 /// GET /api/sessions — list user's sessions
 pub async fn list_sessions(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Query(params): Query<ListParams>,
 ) -> impl IntoResponse {
     match session_repo::list_sessions_for_user(
         &state.db,
-        identity.user_id,
+        principal.user_id,
         params.state.as_deref(),
         params.limit,
     )
@@ -148,10 +148,10 @@ pub async fn list_sessions(
 /// GET /api/sessions/:id — get session detail
 pub async fn get_session(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match session_repo::get_session_for_user(&state.db, id, identity.user_id).await {
+    match session_repo::get_session_for_user(&state.db, id, principal.user_id).await {
         Ok(Some(session)) => {
             let detail: SessionDetail = session.into();
             Json(detail).into_response()
@@ -167,10 +167,10 @@ pub async fn get_session(
 /// DELETE /api/sessions/:id — cancel/terminate session
 pub async fn delete_session(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let session = match session_repo::get_session_for_user(&state.db, id, identity.user_id).await {
+    let session = match session_repo::get_session_for_user(&state.db, id, principal.user_id).await {
         Ok(Some(s)) => s,
         Ok(None) => return (StatusCode::NOT_FOUND, "session not found").into_response(),
         Err(e) => {
