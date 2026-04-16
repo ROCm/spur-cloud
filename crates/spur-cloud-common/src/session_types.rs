@@ -82,3 +82,42 @@ fn default_gpu_count() -> i32 {
 fn default_time_limit() -> i32 {
     240
 }
+
+#[cfg(test)]
+mod tests {
+    use super::SessionState;
+
+    #[test]
+    fn session_state_round_trips_through_strings() {
+        let cases = [
+            (SessionState::Creating, "creating"),
+            (SessionState::Pending, "pending"),
+            (SessionState::Running, "running"),
+            (SessionState::Stopping, "stopping"),
+            (SessionState::Completed, "completed"),
+            (SessionState::Failed, "failed"),
+            (SessionState::Cancelled, "cancelled"),
+        ];
+
+        for (state, raw) in cases {
+            assert_eq!(state.as_str(), raw);
+            assert_eq!(SessionState::from_str(raw), state);
+        }
+    }
+
+    #[test]
+    fn session_state_unknown_string_maps_to_failed() {
+        assert_eq!(SessionState::from_str("unknown"), SessionState::Failed);
+    }
+
+    #[test]
+    fn session_state_terminal_flag_matches_terminal_states() {
+        assert!(!SessionState::Creating.is_terminal());
+        assert!(!SessionState::Pending.is_terminal());
+        assert!(!SessionState::Running.is_terminal());
+        assert!(!SessionState::Stopping.is_terminal());
+        assert!(SessionState::Completed.is_terminal());
+        assert!(SessionState::Failed.is_terminal());
+        assert!(SessionState::Cancelled.is_terminal());
+    }
+}

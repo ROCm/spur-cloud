@@ -115,3 +115,52 @@ pub fn validate_state(headers: &HeaderMap, state: Option<&str>) -> Result<(), &'
         None => Err("missing oauth_state cookie"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::validate_state;
+    use axum::http::{HeaderMap, HeaderValue};
+
+    fn headers_with_cookie(cookie: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("cookie", HeaderValue::from_str(cookie).unwrap());
+        headers
+    }
+
+    #[test]
+    fn validate_state_accepts_matching_cookie_and_state() {
+        let headers = headers_with_cookie("oauth_state=abc123");
+
+        assert_eq!(validate_state(&headers, Some("abc123")), Ok(()));
+    }
+
+    #[test]
+    fn validate_state_rejects_missing_state_parameter() {
+        let headers = headers_with_cookie("oauth_state=abc123");
+
+        assert_eq!(
+            validate_state(&headers, None),
+            Err("missing state parameter")
+        );
+    }
+
+    #[test]
+    fn validate_state_rejects_missing_cookie() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(
+            validate_state(&headers, Some("abc123")),
+            Err("missing oauth_state cookie")
+        );
+    }
+
+    #[test]
+    fn validate_state_rejects_mismatched_state() {
+        let headers = headers_with_cookie("oauth_state=abc123");
+
+        assert_eq!(
+            validate_state(&headers, Some("wrong")),
+            Err("state parameter mismatch")
+        );
+    }
+}
