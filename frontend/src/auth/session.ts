@@ -37,6 +37,8 @@ export function clearSession(): void {
 }
 
 function decodeLegacyJwtUser(token: string): SessionUser | null {
+  // TODO(auth-boundary): remove client-side JWT decoding for OAuth callback handling
+  // once the frontend can hydrate user state via a backend-owned user/session response.
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return {

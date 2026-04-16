@@ -1,4 +1,8 @@
-import { clearSession, getAccessToken } from '../auth/session';
+import {
+  clearSession,
+  getAccessToken,
+  type SessionUser,
+} from '../auth/session';
 
 const API_BASE = '/api';
 
@@ -32,7 +36,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 // Auth
 export interface AuthResponse {
   token: string;
-  user: { id: string; email: string; username: string; is_admin: boolean };
+  user: SessionUser;
 }
 
 export interface Provider {
