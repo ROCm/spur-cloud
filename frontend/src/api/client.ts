@@ -1,11 +1,13 @@
+import {
+  clearSession,
+  getAccessToken,
+  type SessionUser,
+} from '../auth/session';
+
 const API_BASE = '/api';
 
-function getToken(): string | null {
-  return localStorage.getItem('token');
-}
-
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
@@ -17,8 +19,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const resp = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (resp.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearSession();
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }
@@ -35,7 +36,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // Auth
 export interface AuthResponse {
   token: string;
-  user: { id: string; email: string; username: string; is_admin: boolean };
+  user: SessionUser;
 }
 
 export interface Provider {
@@ -146,9 +147,9 @@ export const users = {
   me: () => request<UserProfile>('/users/me'),
 };
 
-// WebSocket terminal URL (passes JWT as query param since browser WS API can't set headers)
+// WebSocket terminal URL (passes current access token as query param since browser WS API can't set headers)
 export function terminalWsUrl(sessionId: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const token = getToken();
+  const token = getAccessToken();
   return `${proto}//${window.location.host}/api/sessions/${sessionId}/terminal?token=${token}`;
 }

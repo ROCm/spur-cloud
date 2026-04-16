@@ -7,7 +7,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::auth::jwt::Identity;
+use crate::auth::principal::Principal;
 use crate::db::billing_repo;
 use crate::state::AppState;
 
@@ -20,10 +20,10 @@ pub struct UsageParams {
 /// GET /api/billing/usage — list usage records
 pub async fn get_usage(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Query(params): Query<UsageParams>,
 ) -> impl IntoResponse {
-    match billing_repo::get_usage(&state.db, identity.user_id, params.since, params.until).await {
+    match billing_repo::get_usage(&state.db, principal.user_id, params.since, params.until).await {
         Ok(records) => Json(records).into_response(),
         Err(e) => {
             tracing::error!("billing query failed: {e}");
@@ -35,10 +35,10 @@ pub async fn get_usage(
 /// GET /api/billing/summary — aggregated usage summary
 pub async fn get_summary(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Query(params): Query<UsageParams>,
 ) -> impl IntoResponse {
-    match billing_repo::get_usage_summary(&state.db, identity.user_id, params.since).await {
+    match billing_repo::get_usage_summary(&state.db, principal.user_id, params.since).await {
         Ok(summary) => Json(summary).into_response(),
         Err(e) => {
             tracing::error!("billing summary failed: {e}");

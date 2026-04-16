@@ -6,7 +6,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use crate::auth::jwt::Identity;
+use crate::auth::principal::Principal;
 use crate::config::Backend;
 use crate::db::session_repo;
 use crate::state::AppState;
@@ -15,12 +15,12 @@ use crate::terminal::ws_handler;
 /// GET /api/sessions/:id/terminal — upgrade to WebSocket for terminal access
 pub async fn terminal_upgrade(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Path(id): Path<Uuid>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     // Verify session belongs to user and is running
-    let session = match session_repo::get_session_for_user(&state.db, id, identity.user_id).await {
+    let session = match session_repo::get_session_for_user(&state.db, id, principal.user_id).await {
         Ok(Some(s)) => s,
         Ok(None) => return (StatusCode::NOT_FOUND, "session not found").into_response(),
         Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "failed").into_response(),

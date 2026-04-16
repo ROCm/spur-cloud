@@ -7,7 +7,7 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::auth::jwt::Identity;
+use crate::auth::principal::Principal;
 use crate::db::{ssh_key_repo, user_repo};
 use crate::models::user::UserProfile;
 use crate::state::AppState;
@@ -15,9 +15,9 @@ use crate::state::AppState;
 /// GET /api/users/me — get current user profile
 pub async fn get_profile(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
 ) -> impl IntoResponse {
-    match user_repo::get_user_by_id(&state.db, identity.user_id).await {
+    match user_repo::get_user_by_id(&state.db, principal.user_id).await {
         Ok(Some(user)) => {
             let profile: UserProfile = user.into();
             Json(profile).into_response()
@@ -36,9 +36,9 @@ pub struct AddSshKeyRequest {
 /// GET /api/users/me/ssh-keys — list SSH keys
 pub async fn list_ssh_keys(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
 ) -> impl IntoResponse {
-    match ssh_key_repo::list_keys(&state.db, identity.user_id).await {
+    match ssh_key_repo::list_keys(&state.db, principal.user_id).await {
         Ok(keys) => Json(keys).into_response(),
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "failed").into_response(),
     }
@@ -47,7 +47,7 @@ pub async fn list_ssh_keys(
 /// POST /api/users/me/ssh-keys — add SSH key
 pub async fn add_ssh_key(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Json(req): Json<AddSshKeyRequest>,
 ) -> impl IntoResponse {
     // Validate SSH key format
@@ -61,7 +61,7 @@ pub async fn add_ssh_key(
 
     match ssh_key_repo::add_key(
         &state.db,
-        identity.user_id,
+        principal.user_id,
         &req.name,
         req.public_key.trim(),
         &fingerprint,
@@ -83,10 +83,10 @@ pub async fn add_ssh_key(
 /// DELETE /api/users/me/ssh-keys/:id — delete SSH key
 pub async fn delete_ssh_key(
     State(state): State<AppState>,
-    Extension(identity): Extension<Identity>,
+    Extension(principal): Extension<Principal>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match ssh_key_repo::delete_key(&state.db, id, identity.user_id).await {
+    match ssh_key_repo::delete_key(&state.db, id, principal.user_id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => (StatusCode::NOT_FOUND, "key not found").into_response(),
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "failed").into_response(),
