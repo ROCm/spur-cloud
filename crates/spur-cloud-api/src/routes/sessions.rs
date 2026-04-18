@@ -215,7 +215,10 @@ pub async fn delete_session(
         }
     }
 
-    let _ = session_repo::update_session_ended(&state.db, id, "cancelled").await;
-    info!(session_id = %id, "session cancelled");
+    // Issue #13: Set state to "stopping" instead of "cancelled" immediately.
+    // The session_sync_loop will detect the terminal state from Spur and
+    // transition to "cancelled" once GPUs are actually released.
+    let _ = session_repo::update_session_state(&state.db, id, "stopping").await;
+    info!(session_id = %id, "session stopping (waiting for Spur confirmation)");
     StatusCode::NO_CONTENT.into_response()
 }
