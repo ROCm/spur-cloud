@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/ap
 WORKDIR /build
 
 # Copy workspace manifests first for layer caching
-COPY spur-cloud/Cargo.toml Cargo.lock ./
+COPY spur-cloud/Cargo.toml spur-cloud/Cargo.lock ./
 COPY spur-cloud/crates/spur-cloud-api/Cargo.toml crates/spur-cloud-api/Cargo.toml
 COPY spur-cloud/crates/spur-cloud-common/Cargo.toml crates/spur-cloud-common/Cargo.toml
 
@@ -26,6 +26,9 @@ RUN cargo build --release --bin spur-cloud-api 2>/dev/null || true
 
 # Copy actual source
 COPY spur-cloud/crates/ crates/
+
+# Force cargo to recompile by touching the source files
+RUN touch crates/spur-cloud-api/src/main.rs crates/spur-cloud-common/src/lib.rs
 
 # Build the binary
 RUN cargo build --release --bin spur-cloud-api
