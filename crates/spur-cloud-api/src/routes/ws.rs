@@ -52,18 +52,16 @@ pub async fn terminal_upgrade(
                 .labels(&format!("spur.ai/job-id={}", job_id))
                 .limit(1);
             let pod_name = match pods.list(&lp).await {
-                Ok(list) => {
-                    match list.items.into_iter().next().and_then(|p| p.metadata.name) {
-                        Some(name) => name,
-                        None => {
-                            return (
-                                StatusCode::SERVICE_UNAVAILABLE,
-                                "session pod not found in cluster",
-                            )
-                                .into_response();
-                        }
+                Ok(list) => match list.items.into_iter().next().and_then(|p| p.metadata.name) {
+                    Some(name) => name,
+                    None => {
+                        return (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "session pod not found in cluster",
+                        )
+                            .into_response();
                     }
-                }
+                },
                 Err(e) => {
                     tracing::error!(session = %id, job_id, error = %e, "failed to look up pod by label");
                     return (StatusCode::INTERNAL_SERVER_ERROR, "failed to query pod")
