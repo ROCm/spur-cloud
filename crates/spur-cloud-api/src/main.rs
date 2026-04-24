@@ -215,18 +215,45 @@ async fn session_sync_loop(state: AppState) {
             };
 
             // Map Spur job state to session state
+            // Issue #40: Check exit code for terminal states to distinguish cancellation from failure
             let spur_state = job.state();
+            let exit_code = job.exit_code;
             let new_state = match spur_state {
                 spur_proto::proto::JobState::JobPending => "pending",
                 spur_proto::proto::JobState::JobRunning => "running",
                 spur_proto::proto::JobState::JobCompleting => "stopping",
-                spur_proto::proto::JobState::JobCompleted => "completed",
-                spur_proto::proto::JobState::JobFailed => "failed",
+                spur_proto::proto::JobState::JobCompleted => {
+                    // Check exit code: 0 = success, 130/143/137 = signals (cancelled), other = failed
+                    match exit_code {
+                        0 => "completed",
+                        130 | 143 | 137 => "cancelled", // SIGINT, SIGTERM, SIGKILL
+                        _ => "failed",
+                    }
+                }
+                spur_proto::proto::JobState::JobFailed => {
+                    // Some failures are actually cancellations (killed by signal)
+                    match exit_code {
+                        130 | 143 | 137 => "cancelled",
+                        _ => "failed",
+                    }
+                }
                 spur_proto::proto::JobState::JobCancelled => "cancelled",
                 spur_proto::proto::JobState::JobTimeout => "failed",
                 spur_proto::proto::JobState::JobNodeFail => "failed",
                 _ => continue,
             };
+
+            // Log exit code mapping for terminal states (debugging)
+            if matches!(new_state, "completed" | "failed" | "cancelled") {
+                info!(
+                    session_id = %session.id,
+                    spur_job_id = job_id,
+                    spur_state = ?spur_state,
+                    exit_code = exit_code,
+                    mapped_state = new_state,
+                    "mapped terminal state"
+                );
+            }
 
             if new_state == session.state {
                 continue;

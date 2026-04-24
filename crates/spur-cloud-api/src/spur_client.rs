@@ -5,7 +5,7 @@ use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tonic::transport::Channel;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use spur_proto::proto::slurm_controller_client::SlurmControllerClient;
 use spur_proto::proto::*;
@@ -347,31 +347,48 @@ pub async fn get_gpu_capacity(
             }
         }
 
+        // Issue #41: Add logging for allocated GPUs not in total pool (data inconsistency)
         if let Some(alloc) = alloc_res {
             for gpu in &alloc.gpus {
                 if let Some(pool) = pools.get_mut(&gpu.gpu_type) {
                     pool.allocated += 1;
+                } else {
+                    // This should not happen - allocated GPU type not found in total resources
+                    warn!(
+                        node = %node.name,
+                        gpu_type = %gpu.gpu_type,
+                        "allocated GPU type not found in node's total resources - data inconsistency"
+                    );
                 }
             }
         }
 
-        // Build per-node info
-        let total_gpus = total_res.map(|r| r.gpus.len() as u32).unwrap_or(0);
-        let alloc_gpus = alloc_res.map(|r| r.gpus.len() as u32).unwrap_or(0);
+        // Build per-node info - handle heterogeneous nodes (Issue #41)
+        // Group GPUs by type on this node to support mixed GPU types
+        if let Some(total) = total_res {
+            let mut gpu_counts: HashMap<String, u32> = HashMap::new();
+            for gpu in &total.gpus {
+                *gpu_counts.entry(gpu.gpu_type.clone()).or_insert(0) += 1;
+            }
 
-        if total_gpus > 0 {
-            let gpu_type = total_res
-                .and_then(|r| r.gpus.first())
-                .map(|g| g.gpu_type.clone())
-                .unwrap_or_default();
+            let mut alloc_counts: HashMap<String, u32> = HashMap::new();
+            if let Some(alloc) = alloc_res {
+                for gpu in &alloc.gpus {
+                    *alloc_counts.entry(gpu.gpu_type.clone()).or_insert(0) += 1;
+                }
+            }
 
-            if let Some(pool) = pools.get_mut(&gpu_type) {
-                pool.nodes.push(GpuNodeInfo {
-                    name: node.name.clone(),
-                    total_gpus,
-                    available_gpus: total_gpus.saturating_sub(alloc_gpus),
-                    state: format!("{:?}", node.state()),
-                });
+            // Add node info to each pool it contributes to
+            for (gpu_type, total_count) in gpu_counts {
+                if let Some(pool) = pools.get_mut(&gpu_type) {
+                    let alloc_count = alloc_counts.get(&gpu_type).copied().unwrap_or(0);
+                    pool.nodes.push(GpuNodeInfo {
+                        name: node.name.clone(),
+                        total_gpus: total_count,
+                        available_gpus: total_count.saturating_sub(alloc_count),
+                        state: format!("{:?}", node.state()),
+                    });
+                }
             }
         }
     }
