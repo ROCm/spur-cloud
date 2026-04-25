@@ -24,6 +24,10 @@ pub struct Config {
     /// Bare-metal backend configuration (required when server.backend = "bare_metal")
     #[serde(default)]
     pub bare_metal: Option<BareMetalConfig>,
+
+    /// Auto-update check configuration.
+    #[serde(default)]
+    pub update: crate::update::UpdateConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]

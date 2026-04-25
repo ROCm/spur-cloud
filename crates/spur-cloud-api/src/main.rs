@@ -7,6 +7,7 @@ mod spur_client;
 mod ssh;
 mod state;
 mod terminal;
+mod update;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -55,6 +56,10 @@ async fn main() -> anyhow::Result<()> {
     // Load config
     let config = Config::load(&args.config)?;
     let listen_addr = config.server.listen_addr.clone();
+
+    // Background update check (non-blocking)
+    update::spawn_startup_check(env!("CARGO_PKG_VERSION"), &config.update);
+
     let config = Arc::new(config);
 
     // Connect to PostgreSQL

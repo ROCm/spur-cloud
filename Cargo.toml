@@ -69,6 +69,7 @@ url = "2"
 base64 = "0.22"
 rand = "0.8"
 sha2 = "0.10"
+semver = "1"
 
 # Spur proto (git dependency from ROCm/spur main branch)
 spur-proto = { git = "https://github.com/ROCm/spur.git", branch = "main" }

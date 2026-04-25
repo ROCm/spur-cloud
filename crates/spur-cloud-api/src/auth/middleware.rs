@@ -117,6 +117,7 @@ mod tests {
                 },
                 server: ServerConfig::default(),
                 bare_metal: None,
+                update: Default::default(),
             }),
         }
     }
