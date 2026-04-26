@@ -1,4 +1,5 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::extract::State;
+use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::Deserialize;
 use tracing::info;
 
@@ -42,5 +43,30 @@ pub async fn set_user_quota(
             tracing::error!("set quota failed: {e}");
             (StatusCode::INTERNAL_SERVER_ERROR, "failed to set quota").into_response()
         }
+    }
+}
+
+/// GET /api/admin/update-check — check for available updates (admin only)
+pub async fn check_update(Extension(principal): Extension<Principal>) -> impl IntoResponse {
+    if !principal.is_admin {
+        return (StatusCode::FORBIDDEN, "admin access required").into_response();
+    }
+
+    match crate::update::check_for_update(env!("CARGO_PKG_VERSION")).await {
+        Ok(result) => Json(serde_json::json!({
+            "current_version": result.current_version,
+            "latest_version": result.latest_tag,
+            "update_available": result.update_available,
+            "release_url": format!(
+                "https://github.com/ROCm/spur-cloud/releases/tag/{}",
+                result.latest_tag
+            ),
+        }))
+        .into_response(),
+        Err(e) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("failed to check for updates: {e}"),
+        )
+            .into_response(),
     }
 }

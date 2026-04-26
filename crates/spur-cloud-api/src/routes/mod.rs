@@ -68,6 +68,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/billing/summary", get(billing::get_summary))
         // Admin
         .route("/api/admin/users/quota", put(admin::set_user_quota))
+        .route("/api/admin/update-check", get(admin::check_update))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
