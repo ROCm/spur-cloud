@@ -2757,7 +2757,7 @@ dependencies = [
 
 [[package]]
 name = "spur-cloud-api"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -2776,6 +2776,7 @@ dependencies = [
  "rand 0.8.5",
  "reqwest",
  "schemars",
+ "semver",
  "serde",
  "serde_json",
  "sha2",
@@ -2797,7 +2798,7 @@ dependencies = [
 
 [[package]]
 name = "spur-cloud-common"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "serde",
