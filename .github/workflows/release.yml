@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.0)"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+  REGISTRY: ghcr.io
+
+jobs:
+  build-binary:
+    name: Build release binary
+    # ubuntu-22.04 → glibc 2.35, the binary will run on 22.04+ and on
+    # any newer Debian/RHEL with glibc >= 2.35.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+
+      - name: Build spur-cloud-api
+        run: cargo build --release --bin spur-cloud-api
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spur-cloud-api-binary
+          path: target/release/spur-cloud-api
+          retention-days: 1
+
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spur-cloud-frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  package:
+    name: Package release tarball
+    needs: [build-binary, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: spur-cloud-api-binary
+          path: ./bin
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: spur-cloud-frontend-dist
+          path: ./frontend-dist
+
+      - name: Package binaries + assets
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
+          DIST="spur-cloud-${VERSION}-linux-amd64"
+          mkdir -p "${DIST}/bin" "${DIST}/frontend" "${DIST}/etc" "${DIST}/deploy"
+
+          cp ./bin/spur-cloud-api "${DIST}/bin/"
+          chmod +x "${DIST}/bin/spur-cloud-api"
+
+          cp -r ./frontend-dist/. "${DIST}/frontend/"
+
+          cp spur-cloud.toml.example "${DIST}/etc/spur-cloud.toml.example"
+          cp -r deploy/. "${DIST}/deploy/"
+          cp README.md LICENSE "${DIST}/"
+
+          tar czf "${DIST}.tar.gz" "${DIST}"
+          sha256sum "${DIST}.tar.gz" > "${DIST}.tar.gz.sha256"
+          ls -lh "${DIST}.tar.gz" "${DIST}.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spur-cloud-release
+          path: |
+            spur-cloud-*.tar.gz
+            spur-cloud-*.tar.gz.sha256
+
+  verify:
+    name: Verify on ${{ matrix.name }}
+    needs: package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: "ubuntu:22.04"
+            name: "Ubuntu 22.04"
+          - distro: "ubuntu:24.04"
+            name: "Ubuntu 24.04"
+          - distro: "debian:12"
+            name: "Debian 12"
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: spur-cloud-release
+
+      - name: Smoke test on ${{ matrix.name }}
+        run: |
+          set -e
+          tar xzf spur-cloud-*.tar.gz
+          BINDIR=$(ls -d spur-cloud-*/bin | head -1)
+          docker run --rm -v "$(pwd)/${BINDIR}:/test:ro" ${{ matrix.distro }} bash -c '
+            set -e
+            echo "=== $(grep PRETTY_NAME /etc/os-release | cut -d\" -f2) ==="
+            echo "glibc: $(ldd --version 2>&1 | head -1)"
+            /test/spur-cloud-api --help > /dev/null
+            echo "  spur-cloud-api: OK"
+          '
+
+  docker-images:
+    name: Build and push Docker images
+    needs: [build-binary, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve tag
+        id: vars
+        run: |
+          VERSION="${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}"
+          # ghcr.io requires lowercase repo names
+          REPO_LOWER="$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          OWNER_LOWER="${REPO_LOWER%/*}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "owner=${OWNER_LOWER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner }}/spur-cloud-api:${{ steps.vars.outputs.version }}
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner }}/spur-cloud-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner }}/spur-cloud-frontend:${{ steps.vars.outputs.version }}
+            ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner }}/spur-cloud-frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  release:
+    name: Create GitHub Release
+    needs: [verify, docker-images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: spur-cloud-release
+
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          gh release create "${TAG}" \
+            --title "Spur Cloud ${TAG}" \
+            --generate-notes \
+            spur-cloud-*.tar.gz spur-cloud-*.tar.gz.sha256
