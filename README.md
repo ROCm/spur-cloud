@@ -190,8 +190,8 @@ kubectl apply -f deploy/k8s/gpuaas-frontend.yaml
 Ensure GPU nodes are labeled for Spur:
 
 ```bash
-kubectl label node gpu-node-01 spur.ai/managed=true
-kubectl label node gpu-node-01 spur.ai/gpu-type=mi300x
+kubectl label node gpu-node-01 spur.amd.com/managed=true
+kubectl label node gpu-node-01 spur.amd.com/gpu-type=mi300x
 ```
 
 ## API

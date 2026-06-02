@@ -85,7 +85,7 @@ rules:
     resources: ["services"]
     verbs: ["get", "list", "create", "delete"]
   # For SpurJob CRDs
-  - apiGroups: ["spur.ai"]
+  - apiGroups: ["spur.amd.com"]
     resources: ["spurjobs"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---

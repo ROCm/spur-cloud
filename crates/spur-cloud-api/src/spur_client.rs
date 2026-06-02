@@ -36,7 +36,7 @@ pub struct SpurJobStatus {
 /// SpurJob CRD spec — matches the operator's SpurJobSpec.
 #[derive(CustomResource, Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[kube(
-    group = "spur.ai",
+    group = "spur.amd.com",
     version = "v1alpha1",
     kind = "SpurJob",
     namespaced,
@@ -95,10 +95,13 @@ pub async fn create_spurjob_crd(params: CreateSpurJobCrdParams<'_>) -> anyhow::R
 
     let mut labels = BTreeMap::new();
     labels.insert(
-        "spur.ai/session-id".to_string(),
+        "spur.amd.com/session-id".to_string(),
         params.session_id.to_string(),
     );
-    labels.insert("spur.ai/managed-by".to_string(), "spur-cloud".to_string());
+    labels.insert(
+        "spur.amd.com/managed-by".to_string(),
+        "spur-cloud".to_string(),
+    );
 
     let mut env = HashMap::new();
     env.insert(

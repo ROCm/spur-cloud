@@ -49,7 +49,7 @@ pub async fn terminal_upgrade(
             // the status watcher does not capture when it writes pod_name to the DB.
             let pods: Api<Pod> = Api::namespaced(kube_client.clone(), &namespace);
             let lp = ListParams::default()
-                .labels(&format!("spur.ai/job-id={}", job_id))
+                .labels(&format!("spur.amd.com/job-id={}", job_id))
                 .limit(1);
             let pod_name = match pods.list(&lp).await {
                 Ok(list) => match list.items.into_iter().next().and_then(|p| p.metadata.name) {
