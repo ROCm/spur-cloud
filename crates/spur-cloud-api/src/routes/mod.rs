@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 pub mod admin;
 pub mod auth;
 pub mod billing;

@@ -1,0 +1,37 @@
+name: PR Lint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-pr-title:
+    runs-on: ubuntu-latest
+    env:
+      PATTERN: "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([a-zA-Z0-9_-]+\\))?!?: .+$"
+
+    steps:
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Checking PR title: '$PR_TITLE'"
+          if ! echo "$PR_TITLE" | grep -Eq "$PATTERN"; then
+            echo "FAIL: PR title does not match conventional commits format."
+            echo "Expected: type(scope): description  (e.g. 'feat(spur-cloud-api): add session API')"
+            echo "Valid types: feat fix docs style refactor perf test build ci chore revert"
+            exit 1
+          fi
+          echo "PASS: PR title is valid."
+
+  license-headers:
+    name: SPDX License Headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check SPDX license headers
+        run: ./scripts/check-license-headers.sh

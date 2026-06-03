@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use axum::extract::State;
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::Deserialize;

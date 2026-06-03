@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Auto-update check for spur-cloud-api.
 //!
 //! On startup, queries the GitHub releases API for ROCm/spur-cloud
