@@ -1,0 +1,135 @@
+# Default values for spur-cloud.
+# Override with `-f my-values.yaml` or `--set key=value`.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace for the user GPU session pods. Created if `createSessionNamespace` is true.
+sessionNamespace: spur-sessions
+createSessionNamespace: true
+
+image:
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+api:
+  enabled: true
+  replicas: 2
+  image:
+    repository: ghcr.io/rocm/spur-cloud-api
+    tag: ""  # Defaults to .Chart.AppVersion
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 500m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  env:
+    RUST_LOG: info
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+frontend:
+  enabled: true
+  replicas: 2
+  image:
+    repository: ghcr.io/rocm/spur-cloud-frontend
+    tag: ""  # Defaults to .Chart.AppVersion
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  host: gpu.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  tls:
+    enabled: false
+    secretName: ""
+
+# Application config rendered into the ConfigMap as spur-cloud.toml.
+config:
+  publicUrl: https://gpu.example.com
+  server:
+    listenAddr: 0.0.0.0:8080
+  spur:
+    controllerAddr: http://spurctld.spur:6817
+  auth:
+    jwtExpiryHours: 24
+    github:
+      enabled: false
+      clientId: ""
+    okta:
+      enabled: false
+      issuer: ""
+      clientId: ""
+      adminGroups: []
+  # Free-form TOML appended verbatim to spur-cloud.toml. Use for fields the
+  # chart does not yet template (e.g. billing, feature flags).
+  extraToml: ""
+
+# Secret material. Either provide values here (chart creates the Secret) or
+# set `existingSecret` to bring your own (managed by ExternalSecrets, sealed-secrets, etc.).
+secrets:
+  create: true
+  existingSecret: ""
+  jwtSecret: ""           # Required. Generate with: openssl rand -hex 32
+  dbPassword: ""          # Required when postgres.enabled or external DB needs a password.
+  githubClientSecret: ""  # Only if config.auth.github.enabled
+  oktaClientSecret: ""    # Only if config.auth.okta.enabled
+
+# In-cluster Postgres for dev / single-node deploys. For production, disable
+# this and point `database.url` at managed Postgres (RDS, CloudSQL, Crunchy).
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  database: spur_cloud
+  user: spur_cloud
+  storage:
+    size: 10Gi
+    storageClassName: ""  # Empty = cluster default
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# External database. Used when postgres.enabled = false.
+# If both are off, you must set database.url explicitly.
+database:
+  # Full DSN. When empty and postgres.enabled, the chart builds one pointing
+  # at the in-cluster Postgres service.
+  url: ""
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
