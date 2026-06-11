@@ -18,14 +18,14 @@ tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 
 # gRPC (client to spurctld)
-tonic = "0.12"
-prost = "0.13"
-prost-types = "0.13"
+tonic = "0.14"
+prost = "0.14"
+prost-types = "0.14"
 
 # REST API
 axum = { version = "0.7", features = ["json", "ws"] }
 axum-extra = { version = "0.9", features = ["typed-header", "cookie"] }
-tower = "0.4"
+tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # CLI
@@ -72,8 +72,8 @@ rand = "0.8.6"
 sha2 = "0.10"
 semver = "1"
 
-# Spur proto — pinned to ROCm/spur release tag (see Cargo.lock for exact commit)
-spur-proto = { git = "https://github.com/ROCm/spur.git", tag = "v0.3.0" }
+# Spur proto — pinned to ROCm/spur commit (includes CDI device API from PR #262)
+spur-proto = { git = "https://github.com/ROCm/spur.git", rev = "5781872920935f38b9b9c9734bbaefb29d9a6fb3" }
 
 # Internal
 spur-cloud-common = { path = "crates/spur-cloud-common" }

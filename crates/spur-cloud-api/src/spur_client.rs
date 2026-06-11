@@ -403,13 +403,16 @@ fn is_node_schedulable(state: NodeState) -> bool {
 pub async fn get_gpu_capacity(
     client: &mut SlurmControllerClient<Channel>,
 ) -> anyhow::Result<Vec<spur_cloud_common::gpu_types::GpuPool>> {
-    use spur_cloud_common::gpu_types::{GpuNodeInfo, GpuPool};
     let resp = client.get_nodes(GetNodesRequest::default()).await?;
-
     let nodes = resp.into_inner().nodes;
+    Ok(compute_gpu_pools(&nodes))
+}
+
+fn compute_gpu_pools(nodes: &[NodeInfo]) -> Vec<spur_cloud_common::gpu_types::GpuPool> {
+    use spur_cloud_common::gpu_types::{GpuNodeInfo, GpuPool};
     let mut pools: HashMap<String, GpuPool> = HashMap::new();
 
-    for node in &nodes {
+    for node in nodes {
         let total_res = node.total_resources.as_ref();
         let alloc_res = node.alloc_resources.as_ref();
         let node_state = node.state();
@@ -434,18 +437,28 @@ pub async fn get_gpu_capacity(
             }
         }
 
-        if let Some(alloc) = alloc_res {
-            for gpu in &alloc.gpus {
-                if let Some(pool) = pools.get_mut(&gpu.gpu_type) {
-                    if schedulable {
-                        pool.allocated += 1;
+        if let (Some(alloc), Some(total)) = (alloc_res, total_res) {
+            if let Some(devs) = alloc.devices.get("gpu") {
+                for dev in &devs.devices {
+                    if let Some(gpu) = total.gpus.iter().find(|g| g.device_id == dev.device_id) {
+                        if let Some(pool) = pools.get_mut(&gpu.gpu_type) {
+                            if schedulable {
+                                pool.allocated += dev.count as u32;
+                            }
+                        } else {
+                            warn!(
+                                node = %node.name,
+                                gpu_type = %gpu.gpu_type,
+                                "allocated GPU type not found in node's total resources - data inconsistency"
+                            );
+                        }
+                    } else {
+                        warn!(
+                            node = %node.name,
+                            device_id = dev.device_id,
+                            "allocated device_id not found in node's total GPU resources"
+                        );
                     }
-                } else {
-                    warn!(
-                        node = %node.name,
-                        gpu_type = %gpu.gpu_type,
-                        "allocated GPU type not found in node's total resources - data inconsistency"
-                    );
                 }
             }
         }
@@ -459,8 +472,20 @@ pub async fn get_gpu_capacity(
 
             let mut alloc_counts: HashMap<String, u32> = HashMap::new();
             if let Some(alloc) = alloc_res {
-                for gpu in &alloc.gpus {
-                    *alloc_counts.entry(gpu.gpu_type.clone()).or_insert(0) += 1;
+                if let Some(devs) = alloc.devices.get("gpu") {
+                    for dev in &devs.devices {
+                        if let Some(gpu) = total.gpus.iter().find(|g| g.device_id == dev.device_id)
+                        {
+                            *alloc_counts.entry(gpu.gpu_type.clone()).or_insert(0) +=
+                                dev.count as u32;
+                        } else {
+                            warn!(
+                                node = %node.name,
+                                device_id = dev.device_id,
+                                "per-node alloc: device_id not found in total GPU resources"
+                            );
+                        }
+                    }
                 }
             }
 
@@ -495,12 +520,202 @@ pub async fn get_gpu_capacity(
         pool.available = pool.total.saturating_sub(pool.allocated);
     }
 
-    Ok(pools.into_values().collect())
+    pools.into_values().collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use spur_cloud_common::gpu_types::GpuPool;
+
+    fn make_gpu(device_id: u32, gpu_type: &str, memory_mb: u64) -> GpuResource {
+        GpuResource {
+            device_id,
+            gpu_type: gpu_type.into(),
+            memory_mb,
+            peer_gpus: vec![],
+            link_type: 0,
+        }
+    }
+
+    fn make_node_info(
+        name: &str,
+        state: i32,
+        gpus: Vec<GpuResource>,
+        alloc_devices: Vec<AllocatedDevice>,
+    ) -> NodeInfo {
+        let alloc = if alloc_devices.is_empty() {
+            None
+        } else {
+            let mut devices = HashMap::new();
+            devices.insert(
+                "gpu".to_string(),
+                DeviceAllocations {
+                    devices: alloc_devices,
+                },
+            );
+            Some(ResourceAllocations {
+                cpus: 0,
+                memory_mb: 0,
+                devices,
+            })
+        };
+        NodeInfo {
+            name: name.into(),
+            state,
+            total_resources: Some(ResourceSet {
+                cpus: 32,
+                memory_mb: 128000,
+                gpus,
+                generic: Default::default(),
+            }),
+            alloc_resources: alloc,
+            ..Default::default()
+        }
+    }
+
+    fn find_pool<'a>(pools: &'a [GpuPool], gpu_type: &str) -> &'a GpuPool {
+        pools.iter().find(|p| p.gpu_type == gpu_type).unwrap()
+    }
+
+    #[test]
+    fn gpu_capacity_basic_idle_nodes() {
+        let nodes = vec![
+            make_node_info(
+                "node1",
+                NodeState::NodeIdle as i32,
+                vec![make_gpu(0, "mi300x", 196608), make_gpu(1, "mi300x", 196608)],
+                vec![],
+            ),
+            make_node_info(
+                "node2",
+                NodeState::NodeIdle as i32,
+                vec![make_gpu(0, "mi300x", 196608), make_gpu(1, "mi300x", 196608)],
+                vec![],
+            ),
+        ];
+        let pools = compute_gpu_pools(&nodes);
+        assert_eq!(pools.len(), 1);
+        let pool = find_pool(&pools, "mi300x");
+        assert_eq!(pool.total, 4);
+        assert_eq!(pool.allocated, 0);
+        assert_eq!(pool.available, 4);
+        assert_eq!(pool.memory_mb, 196608);
+        assert_eq!(pool.nodes.len(), 2);
+    }
+
+    #[test]
+    fn gpu_capacity_with_allocations() {
+        let nodes = vec![make_node_info(
+            "node1",
+            NodeState::NodeMixed as i32,
+            vec![
+                make_gpu(0, "mi300x", 196608),
+                make_gpu(1, "mi300x", 196608),
+                make_gpu(2, "mi300x", 196608),
+                make_gpu(3, "mi300x", 196608),
+            ],
+            vec![
+                AllocatedDevice {
+                    device_id: 0,
+                    count: 1,
+                },
+                AllocatedDevice {
+                    device_id: 2,
+                    count: 1,
+                },
+            ],
+        )];
+        let pools = compute_gpu_pools(&nodes);
+        let pool = find_pool(&pools, "mi300x");
+        assert_eq!(pool.total, 4);
+        assert_eq!(pool.allocated, 2);
+        assert_eq!(pool.available, 2);
+        assert_eq!(pool.nodes[0].available_gpus, 2);
+    }
+
+    #[test]
+    fn gpu_capacity_non_schedulable_excluded() {
+        let nodes = vec![make_node_info(
+            "down-node",
+            NodeState::NodeDown as i32,
+            vec![make_gpu(0, "mi300x", 196608), make_gpu(1, "mi300x", 196608)],
+            vec![AllocatedDevice {
+                device_id: 0,
+                count: 1,
+            }],
+        )];
+        let pools = compute_gpu_pools(&nodes);
+        let pool = find_pool(&pools, "mi300x");
+        // Down nodes don't count toward total or allocated
+        assert_eq!(pool.total, 0);
+        assert_eq!(pool.allocated, 0);
+        assert_eq!(pool.available, 0);
+        // But still appears in node list with 0 available
+        assert_eq!(pool.nodes[0].available_gpus, 0);
+    }
+
+    #[test]
+    fn gpu_capacity_multiple_types() {
+        let nodes = vec![make_node_info(
+            "mixed-node",
+            NodeState::NodeIdle as i32,
+            vec![
+                make_gpu(0, "mi300x", 196608),
+                make_gpu(1, "mi300x", 196608),
+                make_gpu(2, "h100", 81920),
+                make_gpu(3, "h100", 81920),
+            ],
+            vec![AllocatedDevice {
+                device_id: 2,
+                count: 1,
+            }],
+        )];
+        let pools = compute_gpu_pools(&nodes);
+        assert_eq!(pools.len(), 2);
+        let mi = find_pool(&pools, "mi300x");
+        assert_eq!(mi.total, 2);
+        assert_eq!(mi.allocated, 0);
+        let h1 = find_pool(&pools, "h100");
+        assert_eq!(h1.total, 2);
+        assert_eq!(h1.allocated, 1);
+        assert_eq!(h1.available, 1);
+    }
+
+    #[test]
+    fn gpu_capacity_count_greater_than_one() {
+        let nodes = vec![make_node_info(
+            "node1",
+            NodeState::NodeAllocated as i32,
+            vec![make_gpu(0, "mi300x", 196608), make_gpu(1, "mi300x", 196608)],
+            vec![AllocatedDevice {
+                device_id: 0,
+                count: 2,
+            }],
+        )];
+        let pools = compute_gpu_pools(&nodes);
+        let pool = find_pool(&pools, "mi300x");
+        assert_eq!(pool.allocated, 2);
+    }
+
+    #[test]
+    fn gpu_capacity_unresolved_device_id_skipped() {
+        // device_id 99 doesn't exist in total — should be silently skipped (with warning)
+        let nodes = vec![make_node_info(
+            "node1",
+            NodeState::NodeIdle as i32,
+            vec![make_gpu(0, "mi300x", 196608)],
+            vec![AllocatedDevice {
+                device_id: 99,
+                count: 1,
+            }],
+        )];
+        let pools = compute_gpu_pools(&nodes);
+        let pool = find_pool(&pools, "mi300x");
+        assert_eq!(pool.total, 1);
+        assert_eq!(pool.allocated, 0);
+        assert_eq!(pool.available, 1);
+    }
 
     #[test]
     fn schedulable_states() {
