@@ -1,0 +1,49 @@
+{{- if .Values.serviceAccount.create -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "spur-cloud.serviceAccountName" . }}
+  labels:
+    {{- include "spur-cloud.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.rbac.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "spur-cloud.fullname" . }}
+  labels:
+    {{- include "spur-cloud.labels" . | nindent 4 }}
+rules:
+  # Terminal (kube exec) and pod lifecycle
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # SSH NodePort services
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "create", "delete"]
+  # SpurJob CRs
+  - apiGroups: ["spur.ai"]
+    resources: ["spurjobs"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "spur-cloud.fullname" . }}
+  labels:
+    {{- include "spur-cloud.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "spur-cloud.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "spur-cloud.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

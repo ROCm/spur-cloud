@@ -1,0 +1,18 @@
+apiVersion: v2
+name: spur-cloud
+description: GPU as a Service platform built on Spur. Deploys the API, frontend, optional in-cluster Postgres, RBAC, and ingress.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.24.0-0"
+home: https://github.com/ROCm/spur-cloud
+sources:
+  - https://github.com/ROCm/spur-cloud
+maintainers:
+  - name: ROCm
+    url: https://github.com/ROCm
+keywords:
+  - gpu
+  - hpc
+  - spur
+  - scheduler

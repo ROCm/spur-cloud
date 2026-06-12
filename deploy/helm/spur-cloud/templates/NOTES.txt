@@ -1,0 +1,31 @@
+Spur Cloud is installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+1. Reach the UI:
+{{- if .Values.ingress.enabled }}
+     https://{{ .Values.ingress.host }}
+   Make sure DNS for {{ .Values.ingress.host }} points at your ingress controller{{- if .Values.ingress.tls.enabled }} and that TLS secret "{{ .Values.ingress.tls.secretName }}" exists in this namespace{{- end }}.
+{{- else }}
+   Ingress is disabled. Port-forward instead:
+     kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "spur-cloud.frontend.fullname" . }} 8080:{{ .Values.frontend.service.port }}
+{{- end }}
+
+2. Check pods:
+     kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+3. Session pods land in namespace "{{ .Values.sessionNamespace }}" (created by this chart: {{ .Values.createSessionNamespace }}).
+
+{{- if not .Values.postgres.enabled }}
+
+NOTE: in-cluster Postgres is disabled. The API is configured to use:
+     {{ .Values.database.url }}
+{{- end }}
+
+{{- if .Values.secrets.existingSecret }}
+
+NOTE: using existing secret "{{ .Values.secrets.existingSecret }}" — it must contain key "spur-cloud.toml"{{- if .Values.postgres.enabled }} and key "db-password"{{- end }}.
+{{- end }}
+
+Prerequisites (NOT installed by this chart):
+  - Spur controller (spurctld) reachable at: {{ .Values.config.spur.controllerAddr }}
+  - spur-k8s operator watching the {{ .Values.sessionNamespace }} namespace
+  - GPU nodes labeled spur.ai/managed=true and spur.ai/gpu-type=<type>

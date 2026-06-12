@@ -1,0 +1,13 @@
+{{- if .Values.createSessionNamespace -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.sessionNamespace }}
+  labels:
+    {{- include "spur-cloud.labels" . | nindent 4 }}
+    app.kubernetes.io/component: session-namespace
+  annotations:
+    # Keep the namespace if the release is uninstalled — user pods may still
+    # be running there and namespace deletion is destructive.
+    helm.sh/resource-policy: keep
+{{- end }}
